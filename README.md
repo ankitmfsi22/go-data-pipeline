@@ -11,12 +11,16 @@ Built with the Go standard library only, no web frameworks.
 ```
 go-data-pipeline/
 ├── cmd/
-│   └── server/
-│       └── main.go      # Entry point: starts the server and handles graceful shutdown
+│   ├── server/
+│   │   └── main.go      # Entry point: starts the server and handles graceful shutdown
+│   └── ingest-demo/
+│       └── main.go      # Demo: reads sample files and prints the records
 ├── internal/
 │   ├── config/          # Reads settings from environment variables
 │   ├── logger/          # Structured logging (log/slog)
-│   └── server/          # HTTP server with /healthz and /readyz
+│   ├── server/          # HTTP server with /healthz and /readyz
+│   ├── domain/          # Shared types: Record and job Spec
+│   └── source/          # Ingest stage: CSV, JSON and HTTP readers
 ├── docs/                # Architecture diagram
 ├── .golangci.yml        # Linter rules
 ├── Makefile             # Common commands
@@ -28,6 +32,7 @@ go-data-pipeline/
 1. `main.go` loads the config, creates the logger and starts the HTTP server in a goroutine.
 2. The server exposes `/healthz` (is the app alive?) and `/readyz` (can it take requests?).
 3. On Ctrl+C, the server stops taking new requests, lets running requests finish, then exits.
+4. The ingest stage reads every source (CSV file, JSON file, HTTP API) in its own goroutine and sends the records into one channel.
 
 ## Run
 
@@ -38,6 +43,7 @@ make lint     # run linter
 ```
 
 ```bash
+go run ./cmd/ingest-demo   # read the sample files and print the records
 curl http://localhost:8080/healthz   # {"status":"ok"}
 ```
 
