@@ -1,4 +1,3 @@
-// Package server owns the HTTP server lifecycle: routing, timeouts,
 package server
 
 import (
@@ -12,14 +11,12 @@ import (
 	"github.com/ankitmfsi22/go-data-pipeline/internal/config"
 )
 
-// Server wraps http.Server
 type Server struct {
 	http  *http.Server
 	log   *slog.Logger
 	ready atomic.Bool
 }
 
-// New builds a Server. Extra routes can be added through register
 func New(cfg config.Config, log *slog.Logger, register func(mux *http.ServeMux)) *Server {
 	s := &Server{log: log}
 	mux := http.NewServeMux()
@@ -40,10 +37,8 @@ func New(cfg config.Config, log *slog.Logger, register func(mux *http.ServeMux))
 	return s
 }
 
-// Handler exposes the root handler
 func (s *Server) Handler() http.Handler { return s.http.Handler }
 
-// Start begins serving and blocks until the server stops.
 func (s *Server) Start() error {
 	s.ready.Store(true)
 	s.log.Info("http server listening", "addr", s.http.Addr)
@@ -53,7 +48,6 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Shutdown marks the server not-ready,
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.ready.Store(false)
 	s.log.Info("http server shutting down")

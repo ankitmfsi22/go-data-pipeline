@@ -20,8 +20,6 @@ linters:
   settings:
     revive:
       rules:
-        - name: exported
-        - name: package-comments
         - name: var-naming
   exclusions:
     rules:

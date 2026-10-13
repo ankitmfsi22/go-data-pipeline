@@ -1,0 +1,6 @@
+date,country,cases,deaths
+2026-10-01,India,500,5
+2026-10-01,INDIA ,300,2
+2026-10-01,USA,-20,1
+2026-10-01,USA,abc,0
+2026-10-02,Brazil,150

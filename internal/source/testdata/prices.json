@@ -1,0 +1,5 @@
+[
+  { "coin": "bitcoin",  "symbol": "btc", "price_usd": 67000.5 },
+  { "coin": "ethereum", "symbol": "eth", "price_usd": 3500 },
+  { "coin": "solana",   "symbol": "sol", "price_usd": -1 }
+]
