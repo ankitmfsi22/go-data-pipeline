@@ -14,13 +14,14 @@ go-data-pipeline/
 │   ├── server/
 │   │   └── main.go      # Entry point: starts the server and handles graceful shutdown
 │   └── ingest-demo/
-│       └── main.go      # Demo: reads sample files and prints the records
+│       └── main.go      # Demo: runs ingest -> validate -> transform on sample data
 ├── internal/
 │   ├── config/          # Reads settings from environment variables
 │   ├── logger/          # Structured logging (log/slog)
 │   ├── server/          # HTTP server with /healthz and /readyz
-│   ├── domain/          # Shared types: Record and job Spec
-│   └── source/          # Ingest stage: CSV, JSON and HTTP readers
+│   ├── domain/          # Shared types: Record, job Spec and RecordError
+│   ├── source/          # Ingest stage: CSV, JSON and HTTP readers
+│   └── pipeline/        # Validate and transform stages, worker pool
 ├── docs/                # Architecture diagram
 ├── .golangci.yml        # Linter rules
 ├── Makefile             # Common commands
@@ -33,6 +34,8 @@ go-data-pipeline/
 2. The server exposes `/healthz` (is the app alive?) and `/readyz` (can it take requests?).
 3. On Ctrl+C, the server stops taking new requests, lets running requests finish, then exits.
 4. The ingest stage reads every source (CSV file, JSON file, HTTP API) in its own goroutine and sends the records into one channel.
+5. Records go through the validate and transform stages. Each stage runs N workers in parallel (fan-out) that write to one output channel (fan-in).
+6. Records that fail a rule or a conversion are sent to an error channel with the stage and reason. The job keeps running.
 
 ## Run
 
