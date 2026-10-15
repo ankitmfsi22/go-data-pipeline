@@ -42,7 +42,7 @@ func Load() (Config, error) {
 		LogLevel:          getString("LOG_LEVEL", "info"),
 		LogFormat:         getString("LOG_FORMAT", "json"),
 		DatabaseDriver:    getString("DB_DRIVER", "sqlite"),
-		DatabaseURL:       getString("DATABASE_URL", "file:pipeline.db?_pragma=busy_timeout(5000)"),
+		DatabaseURL:       getString("DATABASE_URL", "pipeline.db"),
 		OutputDir:         getString("OUTPUT_DIR", "./output"),
 		DefaultWorkers:    getInt("PIPELINE_DEFAULT_WORKERS", 4, &errs),
 		DefaultBufferSize: getInt("PIPELINE_DEFAULT_BUFFER", 100, &errs),

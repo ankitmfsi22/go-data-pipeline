@@ -8,7 +8,6 @@ import (
 	"github.com/ankitmfsi22/go-data-pipeline/internal/domain"
 )
 
-// Supported transformation ops.
 const (
 	OpTrim      = "trim"
 	OpLowercase = "lowercase"

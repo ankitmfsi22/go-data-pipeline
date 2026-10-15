@@ -8,11 +8,22 @@ import (
 	"time"
 
 	"github.com/ankitmfsi22/go-data-pipeline/internal/domain"
+	"github.com/ankitmfsi22/go-data-pipeline/internal/export"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/pipeline"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/source"
+	"github.com/ankitmfsi22/go-data-pipeline/internal/store"
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Println("error:", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
+	const jobID = "demo-job"
+
 	sources := []source.Source{
 		&source.CSV{Path: "internal/source/testdata/covid.csv"},
 		&source.JSON{Path: "internal/source/testdata/prices.json"},
@@ -23,8 +34,7 @@ func main() {
 		{Field: "price_usd", Rule: "min", Value: 0},
 	})
 	if err != nil {
-		fmt.Println("bad rules:", err)
-		os.Exit(1)
+		return err
 	}
 
 	transformer, err := pipeline.NewTransformer([]domain.Transformation{
@@ -33,16 +43,37 @@ func main() {
 		{Field: "symbol", Op: "uppercase"},
 	})
 	if err != nil {
-		fmt.Println("bad transformations:", err)
-		os.Exit(1)
+		return err
+	}
+
+	aggregator, err := pipeline.NewAggregator([]domain.Aggregation{
+		{Op: "count"},
+		{Op: "sum", Field: "cases", GroupBy: "country"},
+		{Op: "avg", Field: "price_usd"},
+	})
+	if err != nil {
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	db, err := store.OpenSQLite(ctx, "output/pipeline.db")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = db.Close() }()
+
+	exporters := []export.Exporter{
+		export.JSONFile{Path: "output/report.json"},
+		export.CSVFile{Path: "output/report.csv"},
+		export.DB{Store: db},
+	}
+
 	recordsCh := make(chan domain.Record, 10)
 	validatedCh := make(chan domain.Record, 10)
 	transformedCh := make(chan domain.Record, 10)
+	resultCh := make(chan domain.Record, 10)
 	errorCh := make(chan domain.RecordError, 10)
 	go func() {
 		if err := source.ReadAll(ctx, sources, recordsCh); err != nil {
@@ -51,6 +82,15 @@ func main() {
 	}()
 	go pipeline.RunWorkers(ctx, "validate", 3, recordsCh, validatedCh, errorCh, validator.Validate)
 	go pipeline.RunWorkers(ctx, "transform", 3, validatedCh, transformedCh, errorCh, transformer.Transform)
+
+	var summary []domain.AggResult
+	var aggErr error
+	aggDone := make(chan struct{})
+	go func() {
+		defer close(aggDone)
+		summary, aggErr = aggregator.Run(ctx, transformedCh, resultCh)
+	}()
+
 	var failed []domain.RecordError
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -61,19 +101,34 @@ func main() {
 		}
 	}()
 
-	fmt.Println("== passed ==")
-	count := 0
-	for rec := range transformedCh {
-		count++
-		fmt.Printf("%-12s line %-2d %v\n", rec.Source, rec.Line, rec.Fields)
+	records, err := export.Collect(ctx, resultCh)
+	if err != nil {
+		return err
+	}
+	<-aggDone
+	if aggErr != nil {
+		return aggErr
 	}
 	close(errorCh)
 	wg.Wait()
 
-	fmt.Println("\n== rejected ==")
-	for _, e := range failed {
-		fmt.Println(e.Error())
+	result := export.Result{JobID: jobID, Records: records, Summary: summary}
+	for _, e := range exporters {
+		if err := e.Export(ctx, result); err != nil {
+			return fmt.Errorf("export: %w", err)
+		}
 	}
 
-	fmt.Printf("\npassed: %d, rejected: %d\n", count, len(failed))
+	fmt.Printf("passed: %d, rejected: %d\n\n", len(records), len(failed))
+	for _, e := range failed {
+		fmt.Println("rejected:", e.Error())
+	}
+
+	fmt.Println("\n== summary ==")
+	for _, a := range summary {
+		fmt.Printf("%s(%s) by %q: %v\n", a.Op, a.Field, a.GroupBy, a.Values)
+	}
+
+	fmt.Println("\nsaved: output/report.json, output/report.csv, output/pipeline.db")
+	return nil
 }
