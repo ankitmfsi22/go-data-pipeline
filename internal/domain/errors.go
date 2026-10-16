@@ -3,9 +3,9 @@ package domain
 import "fmt"
 
 type RecordError struct {
-	Stage  string
-	Record Record
-	Reason string
+	Stage  string `json:"stage"`
+	Reason string `json:"reason"`
+	Record Record `json:"record"`
 }
 
 func (e RecordError) Error() string {

@@ -241,3 +241,39 @@ func newID() string {
 	_, _ = rand.Read(b)
 	return "job_" + hex.EncodeToString(b)
 }
+
+type Results struct {
+	JobID        string             `json:"job_id"`
+	Status       domain.Status      `json:"status"`
+	Summary      []domain.AggResult `json:"summary"`
+	TotalRecords int                `json:"total_records"`
+	Records      []domain.Record    `json:"records"`
+}
+
+func (m *Manager) Results(ctx context.Context, id string, limit, offset int) (Results, error) {
+	j, err := m.store.GetJob(ctx, id)
+	if err != nil {
+		return Results{}, err
+	}
+	if !j.Status.Done() {
+		return Results{}, ErrNotFinished
+	}
+
+	res := Results{JobID: id, Status: j.Status}
+	if res.Summary, err = m.store.GetSummary(ctx, id); err != nil {
+		return Results{}, err
+	}
+	if res.TotalRecords, err = m.store.CountRecords(ctx, id); err != nil {
+		return Results{}, err
+	}
+	if res.Records, err = m.store.ListRecords(ctx, id, limit, offset); err != nil {
+		return Results{}, err
+	}
+	return res, nil
+}
+func (m *Manager) Errors(ctx context.Context, id string) ([]domain.RecordError, error) {
+	if _, err := m.store.GetJob(ctx, id); err != nil {
+		return nil, err
+	}
+	return m.store.ListErrors(ctx, id)
+}
