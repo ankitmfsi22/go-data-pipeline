@@ -2,15 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/ankitmfsi22/go-data-pipeline/internal/domain"
-	"github.com/ankitmfsi22/go-data-pipeline/internal/export"
-	"github.com/ankitmfsi22/go-data-pipeline/internal/pipeline"
-	"github.com/ankitmfsi22/go-data-pipeline/internal/source"
+	"github.com/ankitmfsi22/go-data-pipeline/internal/job"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/store"
 )
 
@@ -22,113 +21,62 @@ func main() {
 }
 
 func run() error {
-	const jobID = "demo-job"
-
-	sources := []source.Source{
-		&source.CSV{Path: "internal/source/testdata/covid.csv"},
-		&source.JSON{Path: "internal/source/testdata/prices.json"},
+	specPath := "examples/covid-job.json"
+	if len(os.Args) > 1 {
+		specPath = os.Args[1]
 	}
 
-	validator, err := pipeline.NewValidator([]domain.ValidationRule{
-		{Field: "cases", Rule: "min", Value: 0},
-		{Field: "price_usd", Rule: "min", Value: 0},
-	})
+	data, err := os.ReadFile(specPath)
 	if err != nil {
 		return err
 	}
-
-	transformer, err := pipeline.NewTransformer([]domain.Transformation{
-		{Field: "country", Op: "lowercase"},
-		{Field: "cases", Op: "to_number"},
-		{Field: "symbol", Op: "uppercase"},
-	})
-	if err != nil {
-		return err
+	var spec domain.Spec
+	if err := json.Unmarshal(data, &spec); err != nil {
+		return fmt.Errorf("read %s: %w", specPath, err)
 	}
 
-	aggregator, err := pipeline.NewAggregator([]domain.Aggregation{
-		{Op: "count"},
-		{Op: "sum", Field: "cases", GroupBy: "country"},
-		{Op: "avg", Field: "price_usd"},
-	})
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
+	ctx := context.Background()
 	db, err := store.OpenSQLite(ctx, "output/pipeline.db")
 	if err != nil {
 		return err
 	}
 	defer func() { _ = db.Close() }()
 
-	exporters := []export.Exporter{
-		export.JSONFile{Path: "output/report.json"},
-		export.CSVFile{Path: "output/report.csv"},
-		export.DB{Store: db},
-	}
-
-	recordsCh := make(chan domain.Record, 10)
-	validatedCh := make(chan domain.Record, 10)
-	transformedCh := make(chan domain.Record, 10)
-	resultCh := make(chan domain.Record, 10)
-	errorCh := make(chan domain.RecordError, 10)
-	go func() {
-		if err := source.ReadAll(ctx, sources, recordsCh); err != nil {
-			fmt.Println("source errors:", err)
-		}
-	}()
-	go pipeline.RunWorkers(ctx, "validate", 3, recordsCh, validatedCh, errorCh, validator.Validate)
-	go pipeline.RunWorkers(ctx, "transform", 3, validatedCh, transformedCh, errorCh, transformer.Transform)
-
-	var summary []domain.AggResult
-	var aggErr error
-	aggDone := make(chan struct{})
-	go func() {
-		defer close(aggDone)
-		summary, aggErr = aggregator.Run(ctx, transformedCh, resultCh)
-	}()
-
-	var failed []domain.RecordError
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for e := range errorCh {
-			failed = append(failed, e)
-		}
-	}()
-
-	records, err := export.Collect(ctx, resultCh)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	m, err := job.NewManager(ctx, db, log, job.Config{
+		Workers: 4, BufferSize: 100, Timeout: 5 * time.Minute, MaxRunning: 2,
+	})
 	if err != nil {
 		return err
 	}
-	<-aggDone
-	if aggErr != nil {
-		return aggErr
-	}
-	close(errorCh)
-	wg.Wait()
 
-	result := export.Result{JobID: jobID, Records: records, Summary: summary}
-	for _, e := range exporters {
-		if err := e.Export(ctx, result); err != nil {
-			return fmt.Errorf("export: %w", err)
+	j, err := m.Start(ctx, spec)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("started %s (%s)\n", j.ID, j.Status)
+	for !j.Status.Done() {
+		time.Sleep(50 * time.Millisecond)
+		if j, err = m.Get(ctx, j.ID); err != nil {
+			return err
 		}
 	}
 
-	fmt.Printf("passed: %d, rejected: %d\n\n", len(records), len(failed))
-	for _, e := range failed {
-		fmt.Println("rejected:", e.Error())
+	p, _ := m.Progress(j.ID)
+	fmt.Printf("finished: %s %s\n", j.Status, j.Error)
+	fmt.Printf("read %d, passed %d, failed %d, %.0f records/sec, took %v\n",
+		p.RecordsRead, p.RecordsPassed, p.RecordsFailed, p.RecordsPerSec, p.Elapsed.Std())
+	fmt.Printf("latency per record (ms): %v\n", p.StageLatencyMs)
+
+	rejected, err := db.ListErrors(ctx, j.ID)
+	if err != nil {
+		return err
+	}
+	fmt.Println("\n== rejected ==")
+	for _, e := range rejected {
+		fmt.Printf("%s line %d (%s): %s\n", e.Record.Source, e.Record.Line, e.Stage, e.Reason)
 	}
 
-	fmt.Println("\n== summary ==")
-	for _, a := range summary {
-		fmt.Printf("%s(%s) by %q: %v\n", a.Op, a.Field, a.GroupBy, a.Values)
-	}
-
-	fmt.Println("\nsaved: output/report.json, output/report.csv, output/pipeline.db")
+	fmt.Println("\nsaved in output/pipeline.db with job id", j.ID)
 	return nil
 }

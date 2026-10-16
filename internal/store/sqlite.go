@@ -32,6 +32,28 @@ CREATE TABLE IF NOT EXISTS job_summaries (
 	value     REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_job_summaries_job ON job_summaries(job_id);
+
+CREATE TABLE IF NOT EXISTS jobs (
+	id          TEXT PRIMARY KEY,
+	name        TEXT     NOT NULL,
+	status      TEXT     NOT NULL,
+	error       TEXT     NOT NULL DEFAULT '',
+	spec        TEXT     NOT NULL,
+	created_at  DATETIME NOT NULL,
+	started_at  DATETIME,
+	finished_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS job_errors (
+	id      INTEGER PRIMARY KEY AUTOINCREMENT,
+	job_id  TEXT    NOT NULL,
+	stage   TEXT    NOT NULL,
+	source  TEXT    NOT NULL,
+	line    INTEGER NOT NULL,
+	reason  TEXT    NOT NULL,
+	data    TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_job_errors_job ON job_errors(job_id);
 `
 
 type SQLite struct {

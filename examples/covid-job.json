@@ -1,0 +1,27 @@
+{
+  "name": "covid-and-prices",
+  "sources": [
+    { "type": "csv", "location": "internal/source/testdata/covid.csv" },
+    { "type": "json", "location": "internal/source/testdata/prices.json" }
+  ],
+  "validation": [
+    { "field": "cases", "rule": "min", "value": 0 },
+    { "field": "price_usd", "rule": "min", "value": 0 }
+  ],
+  "transformations": [
+    { "field": "country", "op": "lowercase" },
+    { "field": "cases", "op": "to_number" },
+    { "field": "symbol", "op": "uppercase" }
+  ],
+  "aggregations": [
+    { "op": "count" },
+    { "op": "sum", "field": "cases", "group_by": "country" },
+    { "op": "avg", "field": "price_usd" }
+  ],
+  "exports": [
+    { "type": "db" },
+    { "type": "json", "path": "output/report.json" },
+    { "type": "csv", "path": "output/report.csv" }
+  ],
+  "options": { "workers": 3, "timeout": "1m" }
+}
