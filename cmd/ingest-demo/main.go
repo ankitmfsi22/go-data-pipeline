@@ -26,7 +26,7 @@ func run() error {
 		specPath = os.Args[1]
 	}
 
-	data, err := os.ReadFile(specPath)
+	data, err := os.ReadFile(specPath) //nolint:gosec // path comes from the person running the demo
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,7 @@ type Server struct {
 	ready atomic.Bool
 }
 
-func New(cfg config.Config, log *slog.Logger, register func(mux *http.ServeMux)) *Server {
+func New(cfg config.Config, log *slog.Logger, register func(mux *http.ServeMux), middleware ...func(http.Handler) http.Handler) *Server {
 	s := &Server{log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.handleHealth)
@@ -25,10 +25,14 @@ func New(cfg config.Config, log *slog.Logger, register func(mux *http.ServeMux))
 	if register != nil {
 		register(mux)
 	}
+	var handler http.Handler = mux
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i](handler)
+	}
 
 	s.http = &http.Server{
 		Addr:              cfg.HTTPAddr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
 		ReadTimeout:       cfg.ReadTimeout,
 		WriteTimeout:      cfg.WriteTimeout,

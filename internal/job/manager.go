@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ankitmfsi22/go-data-pipeline/internal/domain"
+	"github.com/ankitmfsi22/go-data-pipeline/internal/metrics"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/pipeline"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/store"
 )
@@ -28,6 +29,7 @@ type Config struct {
 	BufferSize int
 	Timeout    time.Duration
 	MaxRunning int
+	Metrics    *metrics.Metrics
 }
 type Manager struct {
 	store  *store.SQLite
@@ -94,7 +96,9 @@ func (m *Manager) Start(ctx context.Context, spec domain.Spec) (domain.Job, erro
 	m.mu.Lock()
 	m.runs[j.ID] = r
 	m.mu.Unlock()
-
+	if m.cfg.Metrics != nil {
+		m.cfg.Metrics.JobsCreated.Inc()
+	}
 	m.wg.Add(1)
 	go m.execute(jobCtx, j, plan, r)
 
@@ -121,7 +125,13 @@ func (m *Manager) execute(ctx context.Context, j domain.Job, plan *pipeline.Plan
 	r.progress.Start()
 	m.log.Info("job started", "id", j.ID)
 
-	out, err := plan.Run(runCtx, j.ID, r.progress)
+	var obs pipeline.Observer = r.progress
+	if met := m.cfg.Metrics; met != nil {
+		met.JobsRunning.Inc()
+		defer met.JobsRunning.Dec()
+		obs = observers{r.progress, met}
+	}
+	out, err := plan.Run(runCtx, j.ID, obs)
 	m.finish(runCtx, j, r, err, out.Errors)
 }
 
@@ -151,6 +161,9 @@ func (m *Manager) finish(ctx context.Context, j domain.Job, r *run, err error, r
 
 	if err := m.store.UpdateJob(ctx, j); err != nil {
 		m.log.Error("save job", "id", j.ID, "err", err)
+	}
+	if m.cfg.Metrics != nil {
+		m.cfg.Metrics.JobsFinished.Inc(string(j.Status))
 	}
 	p := r.progress.Snapshot()
 	m.log.Info("job finished", "id", j.ID, "status", j.Status,
@@ -234,6 +247,14 @@ func (m *Manager) Shutdown(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+type observers []pipeline.Observer
+
+func (o observers) Observe(stage string, took time.Duration, failed bool) {
+	for _, ob := range o {
+		ob.Observe(stage, took, failed)
 	}
 }
 func newID() string {

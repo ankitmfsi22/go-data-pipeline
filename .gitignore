@@ -3,3 +3,8 @@ output/
 coverage.out
 *.db
 .env
+data/
+output/
+*.db
+*.db-shm
+*.db-wal

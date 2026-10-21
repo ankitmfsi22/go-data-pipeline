@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 	"github.com/ankitmfsi22/go-data-pipeline/internal/config"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/job"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/logger"
+	"github.com/ankitmfsi22/go-data-pipeline/internal/metrics"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/server"
 	"github.com/ankitmfsi22/go-data-pipeline/internal/store"
 )
@@ -37,17 +39,27 @@ func run() error {
 		return err
 	}
 	defer func() { _ = db.Close() }()
-
+	met := metrics.New()
 	jobs, err := job.NewManager(ctx, db, log, job.Config{
 		Workers:    cfg.DefaultWorkers,
 		BufferSize: cfg.DefaultBufferSize,
 		Timeout:    cfg.DefaultJobTimeout,
 		MaxRunning: cfg.MaxConcurrentJobs,
+		Metrics:    met,
 	})
 	if err != nil {
 		return err
 	}
-	srv := server.New(cfg, log, api.New(jobs, log).Register)
+	routes := func(mux *http.ServeMux) {
+		api.New(jobs, log).Register(mux)
+		mux.Handle("GET /metrics", met.Handler())
+	}
+	srv := server.New(cfg, log, routes,
+		api.RequestID,
+		api.Logging(log),
+		api.Metrics(met),
+		api.Recover(log),
+	)
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Start() }()
