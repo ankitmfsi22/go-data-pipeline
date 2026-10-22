@@ -6,8 +6,6 @@ A concurrent data processing pipeline in Go. It reads data from multiple sources
 
 Built with the Go standard library only, no web frameworks. The only external dependency is the SQLite driver.
 
-> **Note:** Work in progress. This README is updated daily as new features are added.
-
 ## Features
 
 - **Pipeline stages:** ingest → validate → transform → aggregate → export, connected by channels
@@ -198,18 +196,6 @@ go test -v ./test/       # integration tests only
 - **Unit tests** for every package: sources, rules, transforms, worker pool, aggregation, export, store, job manager, API, middleware and metrics.
 - **Integration tests** (`test/`) start the real server with a temporary database and run full jobs over HTTP: sample data, an HTTP source, a 20,000-row file, concurrent jobs, cancel, timeout and delete.
 - **CI** (GitHub Actions) runs the format check, lint, build and all tests on every push to `main` and on pull requests.
-
-## Progress
-
-- **Day 1** – Project setup, config, structured logging, HTTP server with health checks and graceful shutdown, lint setup.
-- **Day 2** – Domain types (Record, Spec) and ingest sources for CSV, JSON and HTTP.
-- **Day 3** – Validate and transform stages, worker pool (fan-out / fan-in).
-- **Day 4** – Aggregate stage, SQLite store, JSON/CSV/DB exporters.
-- **Day 5** – Job manager: job IDs, background runs with per-job context, cancel, timeout, concurrency limit; progress tracker; jobs and errors in SQLite.
-- **Day 6** – REST API with `net/http`: create, list, get, progress, results, errors, cancel, delete.
-- **Day 7** – Middleware (request ID, logging, panic recovery, HTTP metrics) and a Prometheus `/metrics` endpoint built with the standard library.
-- **Day 8** – Integration tests through the real API and database; Postman collection.
-- **Day 9** – File upload API, inline data sources, GitHub Actions CI, removed unused code and config.
 
 ## High Level Diagram
 <img width="692" height="539" alt="Screenshot 2026-10-12 at 8 32 59 PM" src="https://github.com/user-attachments/assets/b05f6523-5f08-44a1-9ce8-34007d4218cc" />
