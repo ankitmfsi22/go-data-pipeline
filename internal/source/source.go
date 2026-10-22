@@ -23,6 +23,8 @@ func New(spec domain.SourceSpec, client *http.Client) (Source, error) {
 		return &JSON{Path: spec.Location}, nil
 	case domain.SourceHTTP:
 		return &HTTP{URL: spec.Location, Timeout: spec.Timeout.Std(), Client: client}, nil
+	case domain.SourceInline:
+		return &Inline{Rows: spec.Data}, nil
 	default:
 		return nil, fmt.Errorf("unknown source type %q", spec.Type)
 	}

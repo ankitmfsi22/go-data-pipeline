@@ -25,7 +25,6 @@ func TestLoad_Overrides(t *testing.T) {
 	t.Setenv("HTTP_ADDR", ":9090")
 	t.Setenv("PIPELINE_DEFAULT_WORKERS", "16")
 	t.Setenv("SHUTDOWN_TIMEOUT", "5s")
-	t.Setenv("DB_DRIVER", "postgres")
 
 	cfg, err := Load()
 	if err != nil {
@@ -40,9 +39,6 @@ func TestLoad_Overrides(t *testing.T) {
 	if cfg.ShutdownTimeout != 5*time.Second {
 		t.Errorf("ShutdownTimeout = %v, want 5s", cfg.ShutdownTimeout)
 	}
-	if cfg.DatabaseDriver != "postgres" {
-		t.Errorf("DatabaseDriver = %q, want postgres", cfg.DatabaseDriver)
-	}
 }
 
 func TestLoad_InvalidValues(t *testing.T) {
@@ -56,7 +52,6 @@ func TestLoad_InvalidValues(t *testing.T) {
 		{"bad duration", "SHUTDOWN_TIMEOUT", "ten seconds"},
 		{"unknown log level", "LOG_LEVEL", "verbose"},
 		{"unknown log format", "LOG_FORMAT", "xml"},
-		{"unknown db driver", "DB_DRIVER", "mongo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

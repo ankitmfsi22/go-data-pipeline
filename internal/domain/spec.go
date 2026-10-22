@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	SourceCSV  = "csv"
-	SourceJSON = "json"
-	SourceHTTP = "http"
+	SourceCSV    = "csv"
+	SourceJSON   = "json"
+	SourceHTTP   = "http"
+	SourceInline = "inline"
 )
 
 type Spec struct {
@@ -25,8 +26,10 @@ type Spec struct {
 
 type SourceSpec struct {
 	Type     string   `json:"type"`
-	Location string   `json:"location"`
+	Location string   `json:"location,omitempty"`
 	Timeout  Duration `json:"timeout"`
+
+	Data []map[string]any `json:"data,omitempty"`
 }
 
 type ValidationRule struct {
@@ -65,9 +68,14 @@ func (s *Spec) Validate() error {
 	}
 	for i, src := range s.Sources {
 		switch src.Type {
+		case SourceInline:
+			if len(src.Data) == 0 {
+				errs = append(errs, fmt.Errorf("sources[%d]: data is required for inline source", i))
+			}
+			continue
 		case SourceCSV, SourceJSON, SourceHTTP:
 		default:
-			errs = append(errs, fmt.Errorf("sources[%d]: unknown type %q (want csv, json or http)", i, src.Type))
+			errs = append(errs, fmt.Errorf("sources[%d]: unknown type %q (want csv, json, http or inline)", i, src.Type))
 		}
 		if src.Location == "" {
 			errs = append(errs, fmt.Errorf("sources[%d]: location is required", i))

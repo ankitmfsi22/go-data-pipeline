@@ -14,12 +14,13 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Handler struct {
-	jobs *job.Manager
-	log  *slog.Logger
+	jobs      *job.Manager
+	log       *slog.Logger
+	UploadDir string
 }
 
 func New(jobs *job.Manager, log *slog.Logger) *Handler {
-	return &Handler{jobs: jobs, log: log}
+	return &Handler{jobs: jobs, log: log, UploadDir: "data/uploads"}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -31,6 +32,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/pipelines/{id}/errors", h.errors)
 	mux.HandleFunc("PATCH /api/v1/pipelines/{id}/cancel", h.cancel)
 	mux.HandleFunc("DELETE /api/v1/pipelines/{id}", h.remove)
+	mux.HandleFunc("POST /api/v1/files", h.upload)
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {

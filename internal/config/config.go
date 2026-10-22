@@ -19,9 +19,7 @@ type Config struct {
 	ShutdownTimeout   time.Duration
 	LogLevel          string
 	LogFormat         string
-	DatabaseDriver    string
 	DatabaseURL       string
-	OutputDir         string
 	DefaultWorkers    int
 	DefaultBufferSize int
 	DefaultJobTimeout time.Duration
@@ -41,9 +39,7 @@ func Load() (Config, error) {
 		ShutdownTimeout:   getDuration("SHUTDOWN_TIMEOUT", 20*time.Second, &errs),
 		LogLevel:          getString("LOG_LEVEL", "info"),
 		LogFormat:         getString("LOG_FORMAT", "json"),
-		DatabaseDriver:    getString("DB_DRIVER", "sqlite"),
 		DatabaseURL:       getString("DATABASE_URL", "pipeline.db"),
-		OutputDir:         getString("OUTPUT_DIR", "./output"),
 		DefaultWorkers:    getInt("PIPELINE_DEFAULT_WORKERS", 4, &errs),
 		DefaultBufferSize: getInt("PIPELINE_DEFAULT_BUFFER", 100, &errs),
 		DefaultJobTimeout: getDuration("PIPELINE_DEFAULT_TIMEOUT", 10*time.Minute, &errs),
@@ -68,11 +64,6 @@ func (c Config) validate() []error {
 	case "json", "text":
 	default:
 		errs = append(errs, fmt.Errorf("LOG_FORMAT must be json|text, got %q", c.LogFormat))
-	}
-	switch c.DatabaseDriver {
-	case "sqlite", "postgres":
-	default:
-		errs = append(errs, fmt.Errorf("DB_DRIVER must be sqlite|postgres, got %q", c.DatabaseDriver))
 	}
 	if c.DefaultWorkers < 1 {
 		errs = append(errs, errors.New("PIPELINE_DEFAULT_WORKERS must be >= 1"))
