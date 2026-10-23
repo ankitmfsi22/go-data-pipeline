@@ -16,6 +16,7 @@ Built with the Go standard library only, no web frameworks. The only external de
 - **REST API:** create, list, get, progress, results (paginated), errors, cancel, delete, plus file upload
 - **Observability:** request ID, request logging, panic recovery and a Prometheus `/metrics` endpoint, all built with the standard library
 - **Quality:** unit and integration tests with the race detector, golangci-lint, and CI on every push
+- **Security:** optional API key (`X-API-Key`), rate limit on POST requests, secure headers, upload content check, file paths limited to allowed folders (`DATA_DIRS`)
 
 ## Folder Structure
 
@@ -41,6 +42,8 @@ go-data-pipeline/
 ├── test/                # Integration tests: full jobs through the real API and database
 ├── examples/            # Sample job spec, sample data and Postman collection
 ├── docs/                # Architecture diagram
+├── .githooks/           # pre-commit (fmt, vet, lint, tests) and commit-msg checks
+├── .env.example         # Sample environment variables
 ├── prometheus.yml       # Local Prometheus config (scrapes /metrics every 5s)
 ├── .golangci.yml        # Linter rules
 ├── Makefile             # Common commands
@@ -65,19 +68,21 @@ go-data-pipeline/
 ## Run
 
 ```bash
-make run      # start the server on :8080
-make test     # run all tests with the race detector
-make lint     # run golangci-lint
-make fmt      # format the code
-make build    # build the binary into bin/
+cp .env.example .env   # set API_KEY here (leave empty to turn auth off)
+make hooks             # enable git hooks (run once)
+make run               # start the server on :8080
+make test              # run all tests with the race detector
+make lint              # run golangci-lint
+make fmt               # format the code
+make build             # build the binary into bin/
 ```
 
 ```bash
-curl http://localhost:8080/healthz                                    # {"status":"ok"}
-curl -X POST localhost:8080/api/v1/pipelines -d @examples/covid-job.json   # start a job
+curl http://localhost:8080/healthz
+curl -X POST localhost:8080/api/v1/pipelines -H "X-API-Key: $API_KEY" -d @examples/covid-job.json
 ```
 
-Postman: import `examples/postman_collection.json`.
+Postman: import `examples/postman_collection.json` and set the `apiKey` variable.
 
 ## API
 
@@ -98,7 +103,7 @@ Base URL: `http://localhost:8080`
 | DELETE | `/api/v1/pipelines/{id}` | Delete a finished job and its data | 204 |
 | GET | `/metrics` | Service metrics in Prometheus format | 200 |
 
-Errors always return `{"error": "message"}`: `400` invalid spec or body, `404` unknown job, `409` action not allowed in the current state (cancel a finished job, delete a running job, results of a running job).
+Errors always return `{"error": "message"}`: `400` invalid spec, body or file path outside `DATA_DIRS`, `401` missing or wrong `X-API-Key`, `404` unknown job, `409` action not allowed in the current state, `429` too many requests (with `Retry-After`).
 
 ### Example job
 
@@ -182,6 +187,10 @@ All settings come from environment variables and have defaults, so the service r
 | `PIPELINE_DEFAULT_TIMEOUT` | `10m` | Job timeout |
 | `PIPELINE_MAX_CONCURRENT_JOBS` | `5` | Jobs running at the same time; the rest wait |
 | `SHUTDOWN_TIMEOUT` | `20s` | Time allowed for graceful shutdown |
+| `API_KEY` | empty | Required `X-API-Key` value for `/api/*`; empty turns auth off |
+| `RATE_LIMIT_PER_MINUTE` | `60` | POST requests allowed per IP per minute; `0` turns it off |
+| `DATA_DIRS` | `data,examples,internal/source/testdata` | Folders that csv/json sources can read from |
+| `UPLOAD_DIR` | `data/uploads` | Where uploaded files are saved |
 
 Example: `PIPELINE_MAX_CONCURRENT_JOBS=1 LOG_FORMAT=text make run`
 
