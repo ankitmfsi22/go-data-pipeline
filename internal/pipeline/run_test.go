@@ -121,3 +121,27 @@ func TestPlan_RunCancelled(t *testing.T) {
 		t.Errorf("err = %v, want context.Canceled", err)
 	}
 }
+func TestNewPlan_AllowedDirs(t *testing.T) {
+	dir := t.TempDir()
+	deps := Deps{AllowedDirs: []string{dir}}
+
+	tests := []struct {
+		name     string
+		location string
+		ok       bool
+	}{
+		{"inside", filepath.Join(dir, "in.csv"), true},
+		{"in a sub folder", filepath.Join(dir, "sub", "in.csv"), true},
+		{"outside", "/etc/passwd", false},
+		{"climbs out", filepath.Join(dir, "..", "secret.csv"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spec := testSpec(tt.location, filepath.Join(t.TempDir(), "out.json"))
+			_, err := NewPlan(spec, deps)
+			if (err == nil) != tt.ok {
+				t.Errorf("NewPlan(%s) err = %v, want ok=%v", tt.location, err, tt.ok)
+			}
+		})
+	}
+}

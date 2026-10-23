@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -49,5 +51,31 @@ func TestUnknownMethodRejected(t *testing.T) {
 	s := newTestServer(t)
 	if rec := doRequest(t, s, http.MethodPost, "/healthz"); rec.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("POST /healthz = %d, want 405", rec.Code)
+	}
+}
+func TestReadyz_Checks(t *testing.T) {
+	s := newTestServer(t)
+	s.ready.Store(true)
+
+	dbUp := true
+	s.AddCheck("database", func(context.Context) error {
+		if !dbUp {
+			return errors.New("connection refused")
+		}
+		return nil
+	})
+
+	get := func() int {
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil))
+		return rec.Code
+	}
+
+	if code := get(); code != http.StatusOK {
+		t.Errorf("database up: /readyz = %d, want 200", code)
+	}
+	dbUp = false
+	if code := get(); code != http.StatusServiceUnavailable {
+		t.Errorf("database down: /readyz = %d, want 503", code)
 	}
 }

@@ -30,6 +30,7 @@ type Config struct {
 	Timeout    time.Duration
 	MaxRunning int
 	Metrics    *metrics.Metrics
+	DataDirs   []string
 }
 type Manager struct {
 	store  *store.SQLite
@@ -74,7 +75,7 @@ func (m *Manager) Start(ctx context.Context, spec domain.Spec) (domain.Job, erro
 	if err := spec.Validate(); err != nil {
 		return domain.Job{}, fmt.Errorf("%w: %w", ErrInvalidSpec, err)
 	}
-	plan, err := pipeline.NewPlan(spec, pipeline.Deps{HTTPClient: m.client, Saver: m.store})
+	plan, err := pipeline.NewPlan(spec, pipeline.Deps{HTTPClient: m.client, Saver: m.store, AllowedDirs: m.cfg.DataDirs})
 	if err != nil {
 		return domain.Job{}, fmt.Errorf("%w: %w", ErrInvalidSpec, err)
 	}

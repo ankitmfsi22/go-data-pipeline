@@ -1,0 +1,13 @@
+msg=$(head -n 1 "$1")
+case "$msg" in
+  Merge*|Revert*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9-]+\))?!?: .{1,72}$'
+if ! echo "$msg" | grep -Eq "$pattern"; then
+  echo "commit-msg: \"$msg\""
+  echo "Use: <type>(optional scope): <short summary>"
+  echo "Types: feat fix docs style refactor perf test build ci chore"
+  echo "Example: feat(api): add batch endpoint"
+  exit 1
+fi

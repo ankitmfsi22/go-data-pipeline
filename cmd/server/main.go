@@ -46,12 +46,16 @@ func run() error {
 		Timeout:    cfg.DefaultJobTimeout,
 		MaxRunning: cfg.MaxConcurrentJobs,
 		Metrics:    met,
+		DataDirs:   cfg.DataDirs,
 	})
 	if err != nil {
 		return err
 	}
+	handler := api.New(jobs, log)
+	handler.UploadDir = cfg.UploadDir
+
 	routes := func(mux *http.ServeMux) {
-		api.New(jobs, log).Register(mux)
+		handler.Register(mux)
 		mux.Handle("GET /metrics", met.Handler())
 	}
 	srv := server.New(cfg, log, routes,
@@ -59,7 +63,15 @@ func run() error {
 		api.Logging(log),
 		api.Metrics(met),
 		api.Recover(log),
+		api.SecureHeaders,
+		api.RateLimit(cfg.RateLimitPerMinute),
+		api.APIKey(cfg.APIKey),
 	)
+	srv.AddCheck("database", db.Ping)
+
+	if cfg.APIKey == "" {
+		log.Warn("API_KEY is not set: the API is open to anyone who can reach it")
+	}
 
 	errCh := make(chan error, 1)
 	go func() { errCh <- srv.Start() }()

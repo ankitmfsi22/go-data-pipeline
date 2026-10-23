@@ -77,8 +77,8 @@ func OpenSQLite(ctx context.Context, path string) (*SQLite, error) {
 	}
 	return &SQLite{db: db}, nil
 }
-
-func (s *SQLite) Close() error { return s.db.Close() }
+func (s *SQLite) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
+func (s *SQLite) Close() error                   { return s.db.Close() }
 
 func (s *SQLite) SaveResults(ctx context.Context, jobID string, records []domain.Record, summary []domain.AggResult) error {
 	tx, err := s.db.BeginTx(ctx, nil)

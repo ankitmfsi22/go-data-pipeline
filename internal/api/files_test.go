@@ -59,7 +59,7 @@ func TestUpload_Rejects(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := httptest.NewRecorder()
-			h.upload(rec, uploadRequest(t, tt.field, tt.filename, "x"))
+			h.upload(rec, uploadRequest(t, tt.field, tt.filename, "a,b\n1,2\n"))
 			if rec.Code != http.StatusBadRequest {
 				t.Errorf("status = %d, want 400", rec.Code)
 			}
@@ -80,5 +80,24 @@ func TestUpload_PathTraversal(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &res)
 	if !strings.HasPrefix(res.Location, dir) {
 		t.Errorf("file saved outside the upload folder: %s", res.Location)
+	}
+}
+func TestUpload_ChecksContent(t *testing.T) {
+	h := &Handler{UploadDir: t.TempDir()}
+	png := "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+	rec := httptest.NewRecorder()
+	h.upload(rec, uploadRequest(t, "file", "photo.csv", png))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("renamed png: status = %d, want 400", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	h.upload(rec, uploadRequest(t, "file", "empty.csv", ""))
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("empty file: status = %d, want 400", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	h.upload(rec, uploadRequest(t, "file", "prices.json", `[{"coin":"btc","price":1}]`))
+	if rec.Code != http.StatusCreated {
+		t.Errorf("json: status = %d, want 201: %s", rec.Code, rec.Body)
 	}
 }

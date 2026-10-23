@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,8 +20,9 @@ type Observer interface {
 }
 
 type Deps struct {
-	HTTPClient *http.Client
-	Saver      export.ResultSaver
+	HTTPClient  *http.Client
+	Saver       export.ResultSaver
+	AllowedDirs []string
 }
 
 type Plan struct {
@@ -42,6 +45,9 @@ func NewPlan(spec domain.Spec, deps Deps) (*Plan, error) {
 	var err error
 
 	for i, s := range spec.Sources {
+		if (s.Type == domain.SourceCSV || s.Type == domain.SourceJSON) && !insideDirs(s.Location, deps.AllowedDirs) {
+			return nil, fmt.Errorf("sources[%d]: location must be inside one of %v", i, deps.AllowedDirs)
+		}
 		src, err := source.New(s, deps.HTTPClient)
 		if err != nil {
 			return nil, fmt.Errorf("sources[%d]: %w", i, err)
@@ -130,6 +136,28 @@ func (p *Plan) Run(ctx context.Context, jobID string, obs Observer) (Output, err
 	}
 	return out, nil
 }
+
+func insideDirs(path string, dirs []string) bool {
+	if len(dirs) == 0 {
+		return true
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	for _, d := range dirs {
+		base, err := filepath.Abs(d)
+		if err != nil {
+			continue
+		}
+		rel, err := filepath.Rel(base, abs)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
 func timed(stage string, obs Observer, step StepFunc) StepFunc {
 	if obs == nil {
 		return step

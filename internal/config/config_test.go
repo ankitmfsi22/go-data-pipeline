@@ -62,3 +62,23 @@ func TestLoad_InvalidValues(t *testing.T) {
 		})
 	}
 }
+func TestLoad_SecurityDefaults(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.APIKey != "" || cfg.RateLimitPerMinute != 60 || len(cfg.DataDirs) != 3 || cfg.UploadDir != "data/uploads" {
+		t.Errorf("got key %q, rate %d, dirs %v, uploads %q", cfg.APIKey, cfg.RateLimitPerMinute, cfg.DataDirs, cfg.UploadDir)
+	}
+
+	t.Setenv("DATA_DIRS", " /srv/in , data ")
+	t.Setenv("RATE_LIMIT_PER_MINUTE", "-1")
+	if _, err := Load(); err == nil {
+		t.Error("negative rate limit should fail")
+	}
+	t.Setenv("RATE_LIMIT_PER_MINUTE", "0")
+	cfg, _ = Load()
+	if len(cfg.DataDirs) != 2 || cfg.DataDirs[0] != "/srv/in" {
+		t.Errorf("dirs = %v", cfg.DataDirs)
+	}
+}
