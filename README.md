@@ -206,5 +206,11 @@ go test -v ./test/       # integration tests only
 - **Integration tests** (`test/`) start the real server with a temporary database and run full jobs over HTTP: sample data, an HTTP source, a 20,000-row file, concurrent jobs, cancel, timeout and delete.
 - **CI** (GitHub Actions) runs the format check, lint, build and all tests on every push to `main` and on pull requests.
 
-## High Level Diagram
+## Architecture
+
+### High Level Diagram
 <img width="692" height="539" alt="Screenshot 2026-10-12 at 8 32 59 PM" src="https://github.com/user-attachments/assets/b05f6523-5f08-44a1-9ce8-34007d4218cc" />
+
+### Detailed Diagram
+<img width="888" height="524" alt="Screenshot 2026-10-23 at 6 49 21 PM" src="https://github.com/user-attachments/assets/7ff2def0-004a-48d4-adc1-a1c531ae4220" />
+
